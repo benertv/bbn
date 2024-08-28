@@ -307,12 +307,7 @@ cpquery(bn_asia, event = (X == "yes"),
         evidence = ((A == "no") & (S == "yes")))
 ```
 
-Das Event, für das die Wahrscheinlichkeit gesucht wird, ist `X=="yes"` (X-Ray ist positiv) unter der Bedingung, dass `A=="no"` (Person war nicht in Asien) und `S=="yes"` (Person raucht). Die Wahrscheinlichkeit, dass ein X-Ray positiv ist, wenn jemand raucht, aber nicht in Asien war, liegt also bei 17%. Wenn wir wissen, dass die Person zusätzlich in Asien war, erhöht sich die Wahrscheinlichkeit auf 36%:
-
-```{r asia wahrscheinlichkeiten abfragen 2, comment = "", prompt = TRUE}
-cpquery(bn_asia, event = (X == "yes"), 
-        evidence = ((A == "yes") & (S == "yes")))
-```
+Das Event, für das die Wahrscheinlichkeit gesucht wird, ist `X=="yes"` (X-Ray ist positiv) unter der Bedingung, dass `A=="no"` (Person war nicht in Asien) und `S=="yes"` (Person raucht).
 
 In Kapitel 4 schauen wir uns auch an, wie man vorgeht, wenn man die bedingten Wahrscheinlichkeiten manuell berechnen möchte. Das kann zum Beispiel dann hilfreich sein, wenn man Daten aus mehreren Datenquellen miteinander kombinieren möchte und nicht nur einen einzigen Datensatz mit empirischen Daten vorliegen hat.
 
