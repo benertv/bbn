@@ -1,0 +1,655 @@
+---
+title: "Bayes'sche Netze: Machine Learning für Kausalanalysen bei Wirkungsorientierung"
+author: "Dr. Vivien Benert"
+format: 
+  html: 
+    self-contained: true
+toc: true
+toc-title: "Inhalt"
+toc-depth: 3
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## 1 Einführung: Bayes'sche Netzwerke und Directed Acyclic Graphs
+
+**Bayes'sche Netzwerke (BN)**, auch Bayes'sche Netze genannt, sind graphische Modelle der Kausalannahmen zwischen Variablen. Durch das hinterlegen des Modells mit bedingten Wahrscheinlichkeiten für jede Kausalbeziehung lassen sich die kausalen Abhängigkeiten zwischen einzelnen Variablen im Modell besser darstellen als bspw. bei einer multiplen Regression. Zudem kann das Modell auf bestimmte Werte für einzelne Variablen konditioniert werden und die Auswrikung dieser Veränderung auf die anderen Variablen im Modell lassen sich berechnen.
+
+Für die Berechnung und Darstellung Bayes'scher Netzwerke in R gibt es eine ganze Reihe an Paketen. Im folgenden Arbeiten wir mit den folgenden Paketen:
+
+-   `bnlearn` ist ein Paket von Marco Scutari zum Erlernen der grafischen Struktur von Bayes'schen Netzwerken, zum Schätzen ihrer Parameter und zum Durchführen probabilistischer und kausaler Inferenz.
+-   `gRain` ist ein Paket für Wahrscheinlichkeitsausbreitung in grafischen Unabhängigkeitsnetzwerken (dazu zählen auch Bayes'sche Netzwerke).
+-   `igraph` ist ein Paket für Netzwerkanalysen und Visualisierungen.
+
+```{r load, results='hide', comment="", prompt=TRUE}
+# Pakete laden
+library(bnlearn)
+library(gRain)
+library(igraph)
+```
+
+Die Kausalannahmen eines theoretischen Modells werden als Netzwerk dargestellt, in dem die Zufallsvariablen die *Knoten* darstellen und der angenommene Kausalzusammenhang zwischen mindestens zwei Variablen als ein Pfeil abgebildet wird. Diese Pfeile werden *Kanten* genannt. Die Pfeilrichtung entspricht dabei der angenommenen Kausalrichtung.
+
+Es ist auch möglich, dass zwei Knoten in einem Netzwerk durch eine Kante ohne Pfeilspitze verbunden sind. In diesem Fall handelt es sich um ein *ungerichtetes* Netzwerk, die Richtung der Beziehung zwischen den Knoten ist also nicht klar. Netzwerke, in denen die Richtung der Kanten durch Pfeile angegeben sind, heißen *gerichtete* Netzwerke. Für Kausalanalysen sind immer gerichtete Netzwerke notwendig, da die angenommenene Richtung des Kausaleinflusses zwischen zwei Variablen klar sein muss.
+
+Hier ein ganz simples Beispiel für ein gerichtetes Netzwerk:
+
+```{r simple graph, echo = FALSE, fig.cap = "Abb. 1: Ein einfacher, gerichteter Graph mit zwei Knoten und einer Kante"}
+
+# Beispiel simples Kausalmodell
+simple_graph <- igraph::graph(c("A", "B")) 
+
+# Graph darstellen
+plot(simple_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+### 1.1 Definitionen und Grundbegriffe
+
+**Bayes'sches Netzwerk:** Ein Bayes'sches Netz ist ein *graphical model for representing knowledge about an uncertain domain where each node corresponds to a random variable and each edge represents the conditional probability for the corresponding random variables* (Yang, 2019, S. 35). Bayes'sche Netzwerke basieren auf zwei zentralen Konzepten: den DAGs (Directed Acyclic Grpahs) und den bedingten Wahrscheinlichkeitstabellen (Conditional Probability Tables oder CPTs).
+
+**DAGs:** Die Abkürzung *DAG* steht für "Directed Acyclic Graphs", also gerichtete Netzwerke ohne Zirkelschlüsse. Die Kausalannahmen eines theoretischen Modells werden in Form eines Netzwerkes dargstellt. Um daraus inferenzstatistische Schlüsse ziehen zu können, werden die Variablen, die die Knoten des Netzwerks bilden, mit Variablen und empirischen Daten hinterlegt (vgl. dazu die Abschnitte 2 und 4).
+
+**Bedingte Wahrscheinlichkeitstabellen:** *Bedingte Wahrscheinlichkeitstabellen (Conditional Probability Tables)* geben die Wahrscheinlichkeiten der im Modell vorhandenen Variablen an. Bedingte Wahrscheinlichkeiten geben die Wahrscheinlichkeit einer Variable in Abhängigkeit einer anderen Variable an. Wie bedingte Wahrscheinlichkeitstabellen berechnet werden können, schauen wir uns in Kapitel X genauer an.\
+
+### 1.2 Voraussetzungen an das Modell
+
+Netzwerkgraphen sind die grafische Darstellung der Kausalbeziehungen zwischen Variablen. Sie bilden das theoretische Modell der Zusammenhänge zwischen den untersuchten Variablen ab. Sie müssen ein paar Bedingungen erfüllen:
+
+**1) Der Graph muss gerichtet sein**, d.h. die Kausalannahmen zwischen den Variablen sind durch die Pfeilrichtungen im Netzwerk dargstellt.
+
+So einen Graphen kennen wir bereits:
+
+```{r, echo = FALSE, fig.cap = "Abb. 2: Ein einfacher, gerichteter Graph"}
+
+# Beispiel
+plot(simple_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=4) 
+```
+
+**2) Der Netzwerkgraph darf keine Loops enthalten.**
+
+```{r loops, echo = FALSE, fig.cap = "Abb. 3: Ein Graph mit Selbstreferenz (Loop) des Knotens A"}
+
+# Beispiele für Loops
+loop_graph <- igraph::graph(c("A", "B", "A", "A")) 
+
+plot(loop_graph, 
+     edge.arrow.size=1, edge.color = ifelse(is.loop(loop_graph), "red", "grey"), 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+Ein Loop ist eine Kante, die von einem Konten auf sich selbst verweist. Im Rahmen von Bayes'schen Netzwerken, in denen die Knoten für Variablen und die Kanten für Kausalbeziehungen zwischen den Variablen stehen, würde ein Loop bedeuten, dass sich eine Variable selbst erklärt. Das widerspricht den grundsätzlichen Annahmen Bayes'scher Netzwerke, auch wenn eine solche Situation theoretisch möglich ist (z. B. wenn man annimmt, dass Menschen mit viel Vermögen mehr Vermögen ansammeln, zum Beispiel durch Kapitalanlagen und Zinseszinseffekte, sodass man stark vereinfacht annehmen könnte, dass das Vermögen sich selbst beeinflusst).
+
+**3) Der Graph muss azyklisch sein.**
+
+```{r cyclic, echo = FALSE, fig.cap = "Abb. 4: Ein zyklischer Graph"}
+
+# Graph definieren
+cyclic_graph <- igraph::graph(c("A", "B", "A", "C", "B", "D", "D", "A"))
+
+# Kantenfarbe ändern, wenn die Kannte zum Loop gehört
+E(cyclic_graph)[c(1, 3, 4)]$color = "red"
+E(cyclic_graph)[2]$color = "grey"
+
+plot(cyclic_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+**Achtung:** Hier kommt es auf die Richtung der Pfeile an. Bei dieser Variante handelt es sich **NICHT** um einen zyklischen Graphen:
+
+```{r acyclic, echo = FALSE, fig.cap = "Abb. 5: Ein azyklischer Graph"}
+
+# Graph definieren
+acyclic_graph <- igraph::graph(c("B", "A", "A", "C", "B", "D", "D", "A"))
+
+# Kantenfarbe ändern, wenn die Kannte zum Loop gehört
+E(acyclic_graph)[1]$color = "limegreen"
+E(acyclic_graph)[c(2, 3, 4)]$color = "grey"
+
+plot(acyclic_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+### 1.3 Ein paar Begrifflichkeiten
+
+Um Bayes'sche Netzwerke (BN) besser zu verstehen, müssen wir uns mit ein paar Begrifflichkeiten vertraut machen. Die Kausalbeziehungen im Netzwerk werden durch das Verhältnis der Knoten zueinander dargestellt. Dazu wird in der Netzwerkliteratur der Vergleich mit Verwandschaftsbeziehungen genutzt. Die abhänigen Variablen im Netzwerk werden daher als "children" (Kinder) der unabhängigen Variablen ("parents", Eltern) bezeichnet.
+
+In einem simplen BN mit **A --\> B** wäre A also der Parent und B das Kind (Child).
+
+```{r parent child, echo = FALSE, fig.cap = "Abb. 6: Eltern- und Kind-Knoten in einem einfachen Graphen"}
+
+# Abbildung Parent Children
+simple_graph <- igraph::graph(c("A (Parent)", "B (Child)")) 
+
+# Graph darstellen
+plot(simple_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+In einem etwas komplexeren Graphen können Knoten auch mehrere *parents (grün)* sowie *children (grau)* haben.
+
+```{r complex parent child, echo = FALSE, fig.cap = "Abb. 7: Graph mit mehreren Eltern- und Kind-Knoten"}
+
+# Abbildung komplexeres BN
+acyclic_graph <- igraph::graph(c("B", "A", "A", "C", "B", "D", "D", "A"))
+
+V(acyclic_graph)[1]$color = "limegreen"
+V(acyclic_graph)[c(2, 3, 4)]$color = "grey"
+
+plot(acyclic_graph, 
+     edge.arrow.size=1, 
+     vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=4)
+```
+
+### 1.4 Strukturen von DAGs und D-Seperation
+
+DAGs können immer in drei fundamentale Strukturen zerlegt werden, die die Grundlage für die sogenannte **D-Seperation** bilden. D-Seperation ist ein zentrales Konzept in Bayes'schen Netzwerken für die Überprüfung der Abhängigkeit oder Unabhängigkeit von zwei Variablen.
+
+**1) Serial: Die serielle Struktur**
+
+```{r serial, echo = FALSE, fig.cap = "Abb. 8: Serielle Struktur"}
+
+
+serial_graph <- igraph::graph(c("A", "B", "B", "C")) 
+
+# Knotenfarbe
+V(serial_graph)[2]$color = "red"
+V(serial_graph)[c(1, 3)]$color = "black"
+
+# Graph darstellen
+plot(serial_graph, 
+     edge.arrow.size=1, 
+     vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+In der seriellen Struktur besteht ein Kausalzusammenhang von A zu B und von B zu C. B fungiert also als Mediatorvariable des Einflusses von A auf C. Im Kontext der D-Separation sind A und C somit zunächst - indirekt - abhängig voneinander. Wenn man jedoch auf B konditioniert, blockiert B den Weg von A zu C und diese werden unabhängig voneinander. Mit anderen Worten: Wenn für B ein bestimmter Zustand festgelegt wird, für den der Einfluss auf C berechnet werden soll, wird der Zustand von A irrelevant für die Berechnung der Wahrscheinlichkeit von C.
+
+**2) Divergent: Die divergente Struktur**
+
+```{r divergent, echo = FALSE, fig.cap = "Abb. 9: Divergente Struktur"}
+
+divergent_graph <- igraph::graph(c("B", "A", "B", "C")) 
+
+# Knotenfarbe
+V(divergent_graph)[1]$color = "red"
+V(divergent_graph)[c(2,3)]$color = "black"
+
+# Graph darstellen
+plot(divergent_graph, 
+     edge.arrow.size=1, 
+     vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+In der divergenten Struktur sind A und C Child-Knoten von B. B beeinflusst also sowohl A als auch C. In der D-Seperation sind A und C zunächst abhängig voneinander. Dies ändert sich jedoch, wenn man auf B konditioniert: B blockiert den Pfad von A zu C, wenn wir auf B knoditionieren, sodass A und C dann unabhängig werden. In der seriellen und der divergenten Struktur blockiert B also den Pfad von A zu C.
+
+**3) Convergent: Die konvergente Struktur**
+
+```{r convergent, echo = FALSE, fig.cap = "Abb. 10: Konvergente Struktur"}
+
+convergent_graph <- igraph::graph(c("A", "B", "C", "B")) 
+
+# Knotenfarbe
+V(convergent_graph)[2]$color = "red"
+V(convergent_graph)[c(1,3)]$color = "black"
+
+# Graph darstellen
+plot(convergent_graph, 
+     edge.arrow.size=1, 
+     vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+In der konvergenten Struktur sind A und C die Parent-Knoten von B. B ist also abhängig von A und von C. Dabei sind A und C zunächst unabhängig voneinander. Die ändert sich jedoch, wenn man auf B konditioniert. Da sowohl A als auch C einen Einfluss auf B ausüben, besteht auch zwischen A und C eine Abhängigkeit sobald ein Wert für B konditioniert wird (da dieser Wert sowohl auf A als auch C basiert). Dies gilt auch für alle potentiellen Child-Knoten von B.
+
+Auf diese Weise können alle direkten und indirekten Kausalitäten von Variablen in einem BN identifiziert werden. Dazu eignen sich die `path.exist()` und die `dsep()`-Funktionen im `bnlearn`-Paket. Darauf kommen wir später noch einmal zurück.
+
+**\
+Beispiel für D-Separation:**
+
+Ein einfaches Beispiel für ein besseres Verständnis der D-Seperation liefern Geiger, Verma und Pearl (1990, S. 513, Übersetzung V.B.):
+
+*\[...\] Wenn jede Variable als Knoten dargestellt wird und Kanten zwischen den Knoten die kausalen Abhängigkeiten der Variablen darstellen, ergibt sich eine grafische Abbildung der kausalen Hierarchie. Ein Beispiel: Die Aussagen "es regnet" (A), "der Gehweg ist nass" (B) und "John ist auf dem Gehweg ausgerutscht" (C) lassen sich durch eine Kette von drei Knoten - von A durch B zu C - abbilden. Es liegt Nahe, dass entweder Regen oder ein nasser Gehweg ursächlich für das Ausrutschen sein können, dennoch wird der nasse Gehweg als kausal ursächlich für das Ausrutschen dargestellt: Regen kann dazu führen, dass jemand auf dem Gehweg ausrutscht - allerdings nicht, wenn der Gehweg überdacht ist.*
+
+**Ergebnis:** Wenn die Kondition des Gehwegs (nass/trocken) bekannt ist, führt dies zu einer Unabhängigkeit der Variablen Regen und Ausrutschen.
+
+```{r beispiel, echo = FALSE, fig.cap = "Abb. 11: Beispiel von Geiger, Verma & Pearl (1990, S. 513)"}
+
+# Geiger, Verma, Pearl Beispiel
+example_graph <- igraph::graph(c("Regen", "Nass", "Nass", "Ausrutschen")) 
+
+# Graph darstellen
+plot(example_graph, 
+     edge.arrow.size=1, 
+     vertex.color="black", vertex.size=15, vertex.frame.color="black", vertex.label.color="black",
+     vertex.label.cex=1, vertex.label.dist=3) 
+```
+
+## 2 Beispiel: Das Asia-Netzwerk (1988)
+
+Ein sehr bekanntes Beispiel für Bayes'sche Netzwerke ist das Asia-Netzwerk, das auf einem syntethischen Datensatz von Lauritzen und Spiegelhalter (1988) basiert. Der Datensatz ist im `bnlearn`-Package integriert. Der Datensatz besteht aus 8 Variablen und 5000 Fällen. Die Variablen sind:
+
+-   D (dyspnoea), eine Zwei-Level Faktorvariable (yes/no)
+
+-   T (tuberculosis), eine Zwei-Level Faktorvariable (yes/no)
+
+-   L (lung cancer), eine Zwei-Level Faktorvariable (yes/no)
+
+-   B (bronchitis), eine Zwei-Level Faktorvariable (yes/no)
+
+-   A (visit to Asia), eine Zwei-Level Faktorvariable (yes/no)
+
+-   S (smoking), eine Zwei-Level Faktorvariable (yes/no)
+
+-   X (chest X-ray), eine Zwei-Level Faktorvariable (yes/no)
+
+-   E (tuberculosis versus lung cancer/bronchitis), eine Zwei-Level Faktorvariable (yes/no)
+
+Aufgrund der Übersichtlichkeit (wenige Variablen mit wenigen Ausprägungen) wird dieses Beispiel oft als Einstieg in das Thema der Bayes'schen Netzwerke gewählt, obwohl es sich um ein synthetisches Beispiel handelt, das von empirischen Daten nicht bestätigt werden konnte. Die von Lauritzer und Spiegelhalter formulierte Kausalannahme zu diesem Beispiel lautet:
+
+*"Shortness-of-breath (dyspnoea) may be due to tuberculosis, lung cancer or bronchitis, or none of them, or more than one of them. A recent visit to Asia increases the chances of tuberculosis, while smoking is known to be a risk factor for both lung cancer and bronchitis. The results of a single chest X-ray do not discriminate between lung cancer and tuberculosis, as neither does the presence or absence of dyspnoea."* (Lauritzer & Spiegehalter, 1988, S. 163)
+
+```{r asia, comment = "", prompt = TRUE}
+# Asia-Datensatz laden
+data(asia)
+
+# Daten ansehen
+head(asia, 5)
+```
+
+### 2.1 Netzwerkstruktur implementieren und Netzwerk anzeigen
+
+Mit der Funktion `model2network()` können wir die Netwerkstruktur manuell definieren. Dabei werden die einzelnen Kausalzusammenhänge zwischen den Variablen, die im Netzwerk abgebildet werden sollen, jeweils in eckigen Klammern dargestellt.
+
+```{r aisa srtuktur implementieren, comment = "", prompt = TRUE, fig.cap="Abb. 12: Das Asia-Netzwerk"}
+# Netzwerkstruktur implementieren
+dag_asia <- model2network("[A][S][T|A][L|S][B|S][D|B:E][E|T:L][X|E]")
+
+# Netzwerkstruktur anzeigen
+graphviz.plot(dag_asia)
+```
+
+Die Schreibweise zur Implementierung der Netzwerkstruktur ist wie folgt: `[abhängige Variable | unabhängige Variable]` Wenn mehrere Pfeile von oder zu einer Variablen dargestellt werden sollen, können diese durch Doppelpunkte getrennt werden: `[abhängige Variable | unabhängige Variable 1 : unabhängige Variable 2]`.
+
+Das `bnlearn`-Paket erlaubt viele weitere Möglichkeiten, die Netzwerkstruktur zu implementieren. Eine Übersicht gibt es hier: <https://www.bnlearn.com/examples/dag/>
+
+### 2.2 Parameter lernen
+
+Aus der Netzwerkstruktur und den hinterlegten Daten können nun die CPTs errechnet werden. Dies kann manuell passieren. Das `bnlearn-Paket` hat aber auch eine entsprechende Funktion implementiert. Wir übergeben der Funktion also einfach den Datensatz mit unserem empirischen Daten und `bnlearn` berechnet die bedingten Wahrscheinlichkeiten dann anhand der empirischen Evidenz mithilfe der `bnfit()`-Funktion:
+
+```{r asia parameter lernen, comment = "", prompt = TRUE}
+bn_asia <- bn.fit(dag_asia, data = asia, method = "mle")
+```
+
+Mit dem `bn_asia`-Objekt können nun die Wahrscheinlichkeiten für bestimmte Kombinationen an Evidenz abgefragt werden. Wenn wir zum Beispiel die Wahrscheinlichkeit dafür wissen wollen, dass ein X-Ray positiv ist und wir wissen bereits, dass die Person raucht, aber in letzter Zeit nicht in Asien war, können wir die Abfrage wie folgt formulieren:
+
+```{r asia wahrscheinlichkeiten abfragen 1, comment = "", prompt = TRUE}
+cpquery(bn_asia, event = (X == "yes"), 
+        evidence = ((A == "no") & (S == "yes")))
+```
+
+Das Event, für das die Wahrscheinlichkeit gesucht wird, ist `X=="yes"` (X-Ray ist positiv) unter der Bedingung, dass `A=="no"` (Person war nicht in Asien) und `S=="yes"` (Person raucht). Die Wahrscheinlichkeit, dass ein X-Ray positiv ist, wenn jemand raucht, aber nicht in Asien war, liegt also bei 17%. Wenn wir wissen, dass die Person zusätzlich in Asien war, erhöht sich die Wahrscheinlichkeit auf 36%:
+
+```{r asia wahrscheinlichkeiten abfragen 2, comment = "", prompt = TRUE}
+cpquery(bn_asia, event = (X == "yes"), 
+        evidence = ((A == "yes") & (S == "yes")))
+```
+
+In Kapitel 4 schauen wir uns auch an, wie man vorgeht, wenn man die bedingten Wahrscheinlichkeiten manuell berechnen möchte. Das kann zum Beispiel dann hilfreich sein, wenn man Daten aus mehreren Datenquellen miteinander kombinieren möchte und nicht nur einen einzigen Datensatz mit empirischen Daten vorliegen hat.
+
+## 3 Bayes'sche Netzwerke erstellen
+
+Prinzipiell gibt es zwei Möglichkeiten, Bayes'sche Netzwerke zu erstellen und Kausalzusammenhänge damit zu analysieren. Die erste Variante ist, das Modell aufgrund theoretischer Annahmen zu erstellen und dann mit Daten zu füttern. Der Ausgangspunkt hier ist also eine Theorie, bzw. eine Annahme über die Variablen, die benötigt werden, um ein Phänomen zu beschreiben und wie diese Variablen zusammenhängen. In der zweiten Variante können Zusammenhänge zwischen Variablen aus empirischen Daten erlernt werden.
+
+### 3.1 Netzwerkstruktur manuell erstellen (expert systems)
+
+Dieses Vorgehen ist dann geeignet, wenn man eine Annahme darüber hat, wie verschiedene Variablen zusammenhängen könnten und wenn man diese Annahmen anhand von Daten oder Expert:inneneinschätzungen prüfen möchte und die Relevanz der einzelnen Variablen für das Ergebnis berechnen möchte. Dazu werden sowohl die Netzwerkstruktur als auch die bedingten Wahrscheinlichkeiten, mit denen die Netzwerkstruktur unterlegt wird, manuell implementiert. Eine ausführliche Beschreibung für die Umsetzung in R gibt es in Kapitel 4.
+
+**\
+Bayes'sche Netzwerke als Expert:innensysteme:**
+
+Ein großer Vorteil Bayes'scher Netzwerke ist, dass sie als sogenannte Expert:innensysteme fungieren können. Das heißt, dass die angenommene Struktur des Netzwerkes und damit der Kausalzusammenhänge auf Basis der Einschätzung von Expert:innen geschehen kann (z.B. durch Expert:inneninterviews, gemeinsame Workshops, oder bestehende Forschungs- und Datengrundlagen zu einem Thema). Diese Expert:innen können sowohl an der Erarbeitung der Kausalstruktur, also des Netzwerks, beteiligt werden, als auch Einschätzungen zu den bedingten Wahrscheinlichkeiten geben. Damit bieten Bayes'sche Netzwerke großes Potential für die Beteiligung von Stakeholdern in der Planungs- und Umsetzungsphase von Projekten.
+
+Eine Besonderheit ist zudem, dass Daten aus verschiedenen Quellen miteinander kombiniert werden können. Da Bayes'sche Netzwerke CPTs als Input nutzen und die Wahrscheinlichkeiten dieser CPTs dem Modell manuell übergeben werden können (vgl. Kapitel 4), müssen die CPTs für verschiedene Variablen nicht alle aus demselben Datensatz stammen. Es können auch bedingte Wahrscheinlichkeitstabellen aus verschiedenen Datenquellen berechnet werden, wenn diese Datenquellen Zusammenhänge zwischen Variablen beinhalten, die für das vorliegende Kausalmodell relevant sind.
+
+Dies ist zum Beispiel dann sinnvoll, wenn eine Maßnahme oder ein Projekt noch am Anfang der Planung steht, sodass noch keine eigenen Daten erhoben werden konnten. Auch eine Kombination aus Expert:inneneinschätzungen und Sekundärdaten ist möglich.
+
+**Natürlich gilt, wie immer, wenn es um Datenanalysen geht: Die Aussagekraft des Modells ist besser, je besser die Datengrundlage ist.**
+
+Daher ist es ratsam, im Falle von Expert:inneneinschätzungen und/oder Sekundäranalsen im weiteren Verlauf des Projektvorgehens Daten zu sammeln, die sich auf den eigenen, tatschlichen Use Case beziehen, um die Annahmen im Modell auch mit direkter empirischer Evidenz unterlegen und überprüfen zu können. Gerade zu Beginn eines Projektes ist die Arbeit mit Sekundärdaten und Expert:inneneinschätzungen jedoch ein sinnvoller erster Schritt, um zu schauen, welche der theoretischen Annahmen über die Zusammenhänge geplanter Handlungsschritte sinnvoll sind.
+
+### 3.2 Netzwerkstruktur aus Daten lernen (structure learning)
+
+Die zweite Möglichkeit ist es, die Netzwerkstruktur aus den Daten zu lernen. Diese Variante ist geeignet, wenn empirische Daten zu einem Sachverhalt vorliegen, wenn aber zum Beispiel noch keine genaue Vorstellung davon vorhanden ist, wie diese Daten zusammenhängen könnten. Mit anderen Worten: Anstatt mit einer Idee davon zu starten, wie unterschiedliche Variablen zusammenhängen könnten (z. B. wie in einer Theory of Change), werden die Zusammenhänge und damit die Kanten des Netzwerks aus den Daten erschlossen.
+
+Der Vorteil besteht darin, dass kein bzw. nur wenig Vorwissen zu einem bestimmten Themenbereich notwendig ist. Der Nachteil besteht darin, dass die Datengrundlage stark darüber entscheidet, wie gut das Modell ist. Wenn etwa relevante Variablen in einem Datensatz fehlen oder Zusammenhänge aufgrund eines Stichproben-Bias nicht abgebildet werden können, wird ein solches Modell keine sinnvollen Ergebnisse liefern können.
+
+Für die Inferenz der Netzwerkstruktur aus einem vorhandenen Datensatz gibt es verschiedene Algorithmen, die jeweils unterschiedliche Vor- und Nachteile mitbringen. Im `bnlearn`-Packet sind die folgenden Algorithmen implementiert:
+
+-   *constraint-based* (PC Stable, Grow-Shrink, IAMB, Fast-IAMB, Inter-IAMB, IAMB-FDR, MMPC, Semi-Interleaved HITON-PC, HPC),
+
+-   *score-based* (hill climbing und tabu search)
+
+-   und *hybrid* (MMHC, H2PC, RSMAX2).
+
+Eine ausführliche Erklärung der verschiedenen Algorithmen findet sich in der Dokumentation des `bnlearn`-Pakets und unter <https://www.bnlearn.com/>.
+
+Es ist natürlich auch möglich, zunächst Annahmen über die Kausalzusammenhänge der Variablen auf Basis bestehender Forschung zu formulieren und diese Annahmen dann mit dem erlernten Netzwerk aus den empirischen Daten zu vergleichen. Dies hilft dabei, die theoretischen Annahmen zu überprüfen und zu verbessern.\
+
+## 4 Ein Bayes'sches Netzwerk am Beispiel des E-Valuate-Projekts erstellen
+
+Das Projekt **E-Valuate - Auf dem Weg zum lernenden Staat** ist ein vom Bundesministerium für Digitales und Verkehr (BMDV) bis Ende 2025 gefördertes Forschungsprojekt. Anhand der Digitalstrategie der Bundesregierung werden Projekte aus der Digitalstrategie in Form von Reallaboren begleitet und Methoden für wirkungsorientiertes Arbeiten erprobt.
+
+Die zentrale Frage des hier beispielhaft berechneten BNs ist also, *welche Faktoren dazu führen, dass Wirkungsorientierung in der Umsetzung eines Projektes implemeniert wird.*
+
+Dazu haben wir eine Theory of Change (ToC) erstellt. Die ToC ist ein Wirkungsmodell, dass es erlaubt, die angenommenen Kausalzusammenhänge zwischen einzelnen Handlungsschritten und ihren Ergebnissen als Netzwerkgraph darzustellen. Die Handlungsschritte und Ergebnisse werden dabei jeweils als individuelle Events (Knoten) in des Modell aufgenommen. Die Kausalzusammenhängen werden als Pfeile (Kanten) dargestellt. Eine ToC folgt damit denselben Grundprizipien wie die Darstellung Bayes'scher Netzwerke. Wenn die ToC den Anforderungen folgt, denen Bayes'sche Netzwerke unterliegen (vgl. Kapitel 1), ist sie die ToC eine gute Basis für die Struktur eines BN.
+
+Die dargestellten Annahmen über die Kausalzusammenhänge der Variablen lauten beispielhaft folgendermaßen: Die Projektart hat einen Einfluss darauf, wie viele Ministerien und externe Organisationen an der Umsetzung des Projekts beteiligt sind (z.B. weil bestimmte Kompetenzen benötigt werden). Wenn mehrere Ministerien und dienstleistende Organisationen an der Projektumsetzung beteiligt sind, hat das einen Einfluss darauf, ob Mitarbeitende praktische Erfahrung mit und theoretisches Wissen über Wirkungsorientierung haben (z. B. weil es bei mehreren Beteiligten wahrscheinlicher ist, dass einige Mitarbeitende schon mit entsprechenden Methoden und Lernmaterialien gearbeitet haben und dies an das restliche Team weitergeben können). Außerdem kann die Nutzung von Wissensressourcen einen direkten Einfluss auf das theoretische Wissen ausüben. Wissen über und Erfahrung mit Wirkungsorientierung bei den Mitarbeitenden beeinflussen schließlich, ob Wirkungsorientierung in Projekten implementiert wird. Die dazugehörige ToC sieht so aus:
+
+![Abb. 13: ToC: Implementierung von Wirkungsorientierung in Projekten (Anmerkung: Die Pfeile stellen angenommene Kausalzusammenhänge zwischen den Variablen dar.)](Theory%20of%20Change_Faktoren%20für%20WO%20auf%20Projektebene.png){width="1500"}
+
+**Achtung:** Bei der Erstellung einer ToC neigt man manchmal dazu, jeden kleinen Zwischenschritt und seine Auswirkungen auf die anderen Events abbilden zu wollen. Wenn das Ziel ist, die ToC als Basis für ein Bayes'sches Netzwerk zu nutzen, müssen jedoch die Einschränkungen Bayes'scher Netzwerke betrachtet werden. Insbesondere ist wichtig, dass die ToC *keine Zirkelschlüsse (Loops)* enthält. Mit anderen Worten: An keiner Stelle im Netzwerk dürfen sich Variablen selbst erklären.
+
+Zudem ist es ratsam, darauf zu achten, dass die ToC nicht zu komplex wird. Dies hat vorallem forschungspraktische Gründe. Bayes'sche Netzwerke können prinzipiell gut mit vergleichsweisen großen Datenmengen umgehen, da sie sich auf eine lokale Berechnung der Wahrscheinlichkeiten beschränken (für eine ausfürhliche Erklärung siehe Scutari & Denis, 2022), allerdings muss berücksichtigt werden, dass die CPTs schnell komplex werden, wenn ein Knoten viele Abhängigkeiten (parents) hat.
+
+### 4.1 Das Netzwerk implementieren
+
+Zunächst müssen wir die Netzwerkstruktur implementieren. Dazu orientieren wir uns an der ToC. Das beispielhafte Modell enthält sieben Variablen:
+
+-   **Wirkung:** Die Variable misst anhand eines eigens entwickelten Wirkungsindex (Skala: 0-100), ob Wirkungsorientierung in einem Projekt integriert ist. Diese metrische Variable wird zu einer dichotomen Variablen mit den Ausprägungen ja (Wirkungsorientierung ist implementiert) und nein (Wirkungsorientierung ist nicht implementiert) umcodiert. Wirkung = ja wird angenommen, wenn der Wirkungsindex über 50 liegt.
+
+-   **Erfahrung**: Die Variable misst, ob die Befragten Mitarbeitenden praktische Erfahrung mit Wirkungsorientierung haben. Es handelt sich um eine dichotome Variable (ja, nein).
+
+-   **Wissen:** Die Variable misst, ob die Befragten angeben, dass sie sich bereits mit dem Thema Wirkungsorientierung beschäftigt haben. Es handelt sich um eine dichotome Variable (ja, nein).
+
+-   **Ressourcen:** Die Variable misst, ob Wissensressourcen (z. B. Leitfäden, (Online-)Kurse, etc.) über Wirkungsorientierung von den Mitarbeitenden genutzt werden. Es handelt sich um eine dichotome Variable (ja, nein).
+
+-   **Ministerien:** Die Variable misst, ob mehrere Ministerien an der Umsetzung des Projekts berteiligt sind. Es handelt sich um eine dichotome Variable (ja, nein).
+
+-   **Organisationen:** Die Variable misst, ob externe Organisationen an der Umsetzung beteiligt sind. Es handelt sich um eine kategoriale Variable mit drei Ausprägunge (ja, nein, unklar).
+
+-   **Projektart**: Die Variable gibt an, um welche Art von Projekt es sich handelt. Es handelt sich um eine Faktorvariable mit sechs Ausprägungen (Digitalisierung, Strategie, Förderung, Gesetzgebung, Organisation, Sonstiges).
+
+**\
+Netzwerkstruktur in R implementieren:**
+
+Die Netzwerkstruktur implementieren wir manuell auf Basis der ToC.
+
+```{r evaluate graph erstellen, comment = "", prompt = TRUE, fig.cap="Abb. 14: Das E-Valuate-Netzwerk"}
+# Wir definieren die Knoten des Graphen
+nodes_evaluate = empty.graph(nodes = c("wirkung", "erfahrung", "wissen", "ressourcen", "ministerien", "organisationen", "projektart"))
+
+# Dann definieren wir die Netzwerkstruktur, also die Kanten zwischen den Knoten
+# Achtung: Die Namen der Knoten müssen genau so sein, wie im ersten Schritt definiert
+dag_evaluate <- model2network("[projektart][ressourcen][wirkung|wissen:erfahrung][wissen|ressourcen:organisationen][erfahrung|ministerien:organisationen][ministerien|projektart][organisationen|projektart]")
+
+# Graphen ansehen und mit der ToC vergleichen
+graphviz.plot(dag_evaluate)
+```
+
+Es fällt auf, dass `bnlearn` die Variablen genau so anordnet, wie in unserer Theory of Change. Die empirischen Datengrundlage ist eine quantitative Onlineumfrage unter Mitarbeitenden der Verwaltung im Kontext der Digitalstrategie, die im April und Mai 2024 durchgeführt wurde.
+
+### 4.2 Modell fit: Das Modell mit Daten füttern
+
+Wenn für alle Variablen des Modells Daten in einem Datensatz vorliegen, können diese dazu genutzt werden, die Wahrscheinlichkeitsverteilungen zu berechnen, mit denen die Kausalbeziehungen im Netzwerk hinterlegt werden.
+
+```{r load evaluate data, include = FALSE}
+# Daten laden
+setwd("C:/Users/VivienBenert/OneDrive - Agora Digitale Transformation gGmbH/Dokumente - Agora Digitale Transformation/Projekte/01 E-Valuate/02_Produkte/06_Umfrage/Panel 1")
+
+# Daten laden
+df_bn <- readRDS("./Data/Bereinigt/df_bn.RDS")
+```
+
+Zunächst verschaffen wir uns einen Überblick über die Variablen im Datensatz und führen ein paar Bereinigungs- und Vorbereitungsschritte durch.
+
+```{r evaluate daten übersicht, comment = "", prompt = TRUE}
+# Variablennamen anziegen
+names(df_bn)
+
+# Übersicht über das Objekt und die Variablenarten mit str()
+# Alle Variablen müssen factor sein
+str(df_bn)
+
+# NAs behandeln wir in diesem Fall wie "nein"-Antworten
+df_bn[is.na(df_bn)] <- "nein"
+
+# chr-Variablen zu factor-Variablen
+# Linke Seite der Zuweisung identifiziert alle Variablen im df, die chr sind
+# sapply links ist notwendig, damit das Objekt ein df und keine Liste ist
+# Rechte Seite führt as.factor für jede chr-Variable aus
+df_bn[sapply(df_bn, is.character)] <- lapply(df_bn[sapply(df_bn, is.character)], 
+                                       as.factor)
+```
+
+Für die Berechnung der konditionellen Wahrscheinlichkeiten aus den vorliegenden empirischen Daten nutzen wir dann die `bnfit`-Funktion aus `bnlearn`:
+
+```{r evaluate bn fit, comment = "", prompt = TRUE}
+# bn.fit-Fuktion
+bn_mle <- bn.fit(dag_evaluate, data = df_bn, method = "mle")
+
+```
+
+### 4.3 CPTs manuell berechnen
+
+Es ist auch möglich, die CPTs selbst zu berechnen und einzeln an das Modell zu übergeben. Das ist dann hilfreich, wenn diverse Datengrundlagen miteinander kombiniert werden sollen. Beispielhaft machen wir das hier für eine Variable.
+
+***Achtung:** Dies ist eine Alternative zur Berechnung über die `bn.fit()`-Funktion. Diese Schritte sind nicht notwendig, wenn alle Variablen in einem Datensatz vorliegen.*
+
+Die Formel für bedingte Wahrscheinlichkeiten lautet:
+
+`P(B | A) = P(A and B) / P(A)` .
+
+In R berechnen wir bedingte Wahrscheinlichkeiten ganz einfach mit der `prop.table()`-Funktion aus Base R.
+
+```{r evaluate manuell cpts, eval=FALSE}
+# Berechnung der CPTs mit der prop.table()-Funktion in Base-R für Eltern-Knoten
+cpt_projektart <- prop.table(table(df_bn[, "projektart"]))
+
+# Für Zusammenhänge mehrerer Knoten
+# Wir setzen margin=1, damit die Wahrscheinlichkeiten abhängig von der ersten Variable (Ressourcen) berechnet werden
+cpt_wiss_ress <- prop.table(table(df_bn[, c("ressourcen", "wissen")]), margin = 1)
+
+# Für mehr als zwei Knoten
+cpt_wiss_ress <- prop.table(table(df_bn[, c("wissen", "ressourcen")]), margin = 1)
+```
+
+**\
+Expert:inneneinschätzungen:**
+
+Wenn die Wahrscheinlichkeiten auf Expert:inneneinschätzungen beruhen, kann man die CPTs als Matrix selbst aufsetzen (*Achtung: die Wahrscheinlichkeit hier sind nur ein Beispiel und entsprechen nicht den tatsächlichen Werten*):
+
+```{r manuell cpt, eval = FALSE}
+# Für die Parent-Variablen sind die Tabellen klein
+cpt_ressourcen <- matrix(c(0.4, 0.6), ncol = 2, dimnames = list(NULL, c("Ja", "Nein")))
+
+# Für zwei Variablen und mehrere Kategoren wird es etwas komplexer
+cpt_ministerien <- array(c(0.4, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1), dim = c(7,2), dimnames = list("projektart" = c("Digitalisierung", "Förderung", "Gesetzgebung", "IT-Entwicklung", "Organisationsmaßnahme", "Sonstiges", "Strategientwicklung"), "ministerien" = c("ja", "nein")))
+
+# Für drei Variablen muss die dim-Option entsprechend angepasst werden
+cpt_erfahrung <- array(c(0.5, 0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8), dim = c(2, 2, 2), dimnames = list("erfahrung" = c("ja", "nein"), "ministerien" =  c("Ja", "Nein"), "organisationen" = c("ja", "nein")))
+
+```
+
+**\
+custom.fit()-Funktion:**
+
+Wenn die CPTs manuell berechnet oder auf Basis von Expert:inneneinschätzungen angelegt wurden, nutzen wir zum übertragen in das Modell die `custom.fit`- statt der `bn.fit`-Funktion aus dem `bnlearn`-Paket:
+
+```{r evaluate custom fit, eval=FALSE}
+# Wir übergeben alle lokalen Verteilungen (CPTs) an eine Liste, die wir in custom.fit() einlesen können
+
+# Die Tabellen werden den entsprechenden Knotennamen zugeordneten, damit bnlearn die Wahrscheinlichkeiten zuordnen kann
+cpts_evaluate <- list(ressourcen = cpt_ressourcen, ministerien = cpt_ministeiren, erfahrung = cpt_erfahrung) #usw.
+
+# BN berechnen
+bn_custom <- custom.fit(dag_evaluate, cpts_evaluate)
+```
+
+### 4.4 Modellübersicht
+
+Im fertigen `bn.fit`-Objekt (entweder aus der `bn.fit` oder der `custom.fit`-Funktion) sind die Kausalannahmendes DAGs nun mit Daten hinterlegt, sodass wir verschiedene Arten von Abfragen an das Modell stellen können.
+
+Die Funktion `nparams()` gibt die Anzahl der Parameter im Modell aus:
+
+```{r evaluate nparams, comment = "", prompt = TRUE}
+nparams(bn_mle)
+```
+
+Die Funktion `arcs()` zeigt die Pfeile des Netzwerks in Form einer Kantenliste an:
+
+```{r evaluate arcs, comment = "", prompt = TRUE}
+arcs(bn_mle)
+```
+
+Eine Übersicht über weitere Befehle gibt es hier: <https://www.bnlearn.com/documentation/bnlearn-manual.pdf>
+
+**\
+Exact Inference:**
+
+Für die genaue Berechnung der Wahrscheinlichkeiten für das Eintreten bestimmter Events unter der Berücksichtigung anderer Variablen im Netzwerk ist das `gRain`-Paket notwendig. Das Bayes'sche Netzwerk wird dazu zunächst in einen *junction tree*, also eine Baumstruktur, überführt.
+
+```{r exact inference grain, comment = "", prompt = TRUE}
+library(gRain)
+
+# BN zu junction tree 
+junction <- compile(as.grain(bn_mle))
+
+```
+
+Anschließend lassen sich die Wahrscheinlichkeiten bestimmter Knoten abfragen.
+
+```{r exact inference abfrage, comment = "", prompt = TRUE}
+q <- gRain::querygrain(junction, nodes = "wirkung")
+q$wirkung
+```
+
+Es lassen sich auch Evidenzen für bestimmte Variablen festlegen. So lässt sich zum Beispiel die Wahrscheinlichkeit für wirkung = ja abfragen, wenn es sich um ein Digitalisierungsprojekt handelt:
+
+```{r exact inference weitere abfrage, comment = "", prompt = TRUE}
+# Dazu setzen wir zunächst die Werte fest, die abgefragt werden sollen
+junction_digi <- gRain::setEvidence(junction, nodes = "projektart", states = "Digitalisierung" )
+
+# Danach können wir die Wahrscheinlichkeit wie oben abfragen
+q <- gRain::querygrain(junction_digi, nodes = "wirkung")
+q$wirkung
+```
+
+**\
+Approximate Inference:**
+
+Alternativ können Monte Carlo-Simulationen genutzt werden, um Schätzungen über die Wahrscheinlichekiten für das Eintreten bestimmter Ereignisse zu machen. Dazu werden zunächst auf Basis der Daten Beobachtungen simuliert, aus diese wird dann die Wahrscheinlichkeit für ein bestimmtes Ereignis geschätzt. Bei Monte Carlo-Simulationen werden wiederholt Zufallsstichproben einer Verteilung generiert.
+
+Dies ist im `cpquery`-Befehl des `bnlearn`-Pakets implementiert. Approximate Inference ist vor allem dann sinnvoll, wenn die Fallzahl der empirischen Daten gering ist oder wenn es sich um Expert:inneneinschätzungen handelt. Hier ein paar Beispiele für unterschiedliche Abfragen:
+
+```{r evaluate approx abfrage, comment = "", prompt = TRUE}
+# in bnlearn enthalten
+cpquery(bn_mle, event = (wirkung == "ja"), 
+        evidence = ((wissen == "ja") & (erfahrung == "ja")))
+
+cpquery(bn_mle, event = (wirkung == "ja"), 
+        evidence = ((wissen == "nein") & (erfahrung == "nein")))
+
+cpquery(bn_mle, event = (wirkung == "ja"), 
+        evidence = ((wissen == "nein") & (erfahrung == "ja")))
+
+cpquery(bn_mle, event = (wirkung == "ja"), 
+        evidence = ((projektart == "Digitalisierung") & (erfahrung == "nein")))
+
+cpquery(bn_mle, event = (erfahrung == "ja"), 
+        evidence = ((ressourcen == "nein")))
+
+cpquery(bn_mle, event = (wissen == "ja"), 
+        evidence = ((ressourcen == "nein")))
+
+cpquery(bn_mle, event = (wissen == "ja"), 
+        evidence = ((ressourcen == "nein")))
+```
+
+Wir müssen berücksichtigen, dass es sich um Schätzungen handelt. Bei wiederholter Abfrage derselben Variablen können also leicht unterschiedliche Werte herauskommen. Zudem werden die Wahrscheinlichkeiten leicht von der exakten Abfrage mit dem `gRain`-Paket (siehe oben) abweichen.
+
+Die Genauigkeit der Schätzung kann verbessert werden, indem die Fallzahl (n) erhöht wird. Allerdings führt dies zu sehr langen Rechenzeiten. Eine bessere Option ist das *likelihood weighting*, das im cpquery-Paket über die Option `method="lw"` implementiert ist: "Likelihood weighting generates random observations in such a way that all of them match the evidence, and re-weights them appropriately when computing the conditional probability for the query." (Scutari & Denis, 2022, S. 27)
+
+```{r evaluate method lw, comment = "", prompt = TRUE}
+cpquery(bn_mle, event = (wirkung == "ja"), evidence = list(wissen = "nein"), method = "lw")
+```
+
+***Achtung**: Wenn `method=lw` gesetzt wird, gibt es die Besonderheit, dass `evidence` als Liste übergeben werden muss. Wir müssen hier also den `list()`-Befehl ergänzen wie oben geschehen.*
+
+Die simulierten Beobachtungen können mithilfe des `cpdist`-Befehls auch in einen Datensatz überführt werden. Dieser Ansatz ist extrem hilfreich, um etwa simulierte Daten für Expert:inneneinschätzungen zu generieren. Auf der Basis der so generierten Daten können dann weitere Analysen durchgeführt werden, um Annahmen über die Daten zu prüfen.
+
+```{r evaluate daten simulieren, comment = "", prompt = TRUE}
+# Datensatz simulieren
+simulated_df <- cpdist(bn_mle, nodes=c("wirkung", "wissen", "ressourcen"), evidence= (erfahrung == "ja"))
+
+# Erste 5 Fälle des df ansehen
+head(simulated_df, 5)
+```
+
+## 5 BNs visualisieren
+
+Für eine prägnante Darstellung lassen sich die Ergebnisse in die Netzwerkabbildung integrieren. Dazu bietet das `bnlearn`-Paket viele praktische Lösungen und Anspassungsmöglichkeiten, die die Umsetzung einfach machen.
+
+Die einfachste Möglicheit stellt der Befehl `graphviz.chart()` dar:
+
+```{r visualisierung simple, comment = "", prompt = TRUE, fig.cap = "Abb. 15: Fertiges BN mit Datenvisualisierung als Balkendiagramm"}
+# Für den Default-Plot übergeben wir nur das bn.fit-Objekt an die graphviz-Funktion
+graphviz.chart(bn_mle)
+```
+
+Die Funktion liefert ein Netzwerk, in dem die Knoten als einfache Balkendiagramme dargestellt sind. Um die Daten in den Diagrammen übersichtlicher darzustellen, gibt es verschiedene optionale Argumente in `graphviz.chart()`. Mit `type = "barprop"` können beispielsweise die Werte angezeigt werden.
+
+```{r visualisierung mit werten, comment = "", prompt = TRUE, fig.cap = "Abb. 16: Fertiges BN mit Datenvisualisierung als Balkendiagramm mit angezeigten Werten"}
+graphviz.chart(bn_mle, type = "barprob")
+```
+
+Auch farbliche Anpassungen sind möglich. Das Argument `bar.col=""` bestimmt die Farbe der Balken und mit dem Argument `strip.bg=""` kann die Kopfzeile der Diagramme farblich angepasst werden. Das Argument `grid=TRUE` kann genutzt werden, um vertikale Hilfslinien hinzuzufügen, die das Ablesen der Diagramme erleichtern. Mit der Default-Einstellung `grid=TRUE` werden diese Linien bei 0, 25, 50, und 75% eingefügt. Durch Angabe eines Vektors mit Dezimalzahlen (z.B. `grid=c(0.2, 0.4, 0.6, 0.8)`) ist es aber auch möglich, die Linien an individuellen Werten zu platzieren.
+
+```{r visualisierung mit werten und farben, comment = "", prompt = TRUE, fig.cap = "Abb. 17: Fertiges BN mit Datenvisualisierung als Balkendiagramm mit angezeigten Werten und Farben"}
+graphviz.chart(bn_mle, type = "barprob", grid = TRUE, 
+               bar.col = "violet", strip.bg = "lightskyblue")
+```
+
+## Weiterführende Quellen
+
+**\
+Theorie Bayes'scher Netzwerke:**
+
+Geiger, D., Verma, T., & Pearl, J. (1990). Identifying independence in Bayesian networks. *Networks, 20*(5), 507-534. <http://ftp.cs.ucla.edu/pub/stat_ser/r116.pdf>
+
+Yang, X.-S., (2019). *Introduction to Algorithms for Data Mining and Machine Learning.* Academic Press.
+
+**bnlearn-Paket:**
+
+Beispiele für die Nutzung von bnlearn: <https://www.bnlearn.com/examples/dag/>
+
+Dokumentation des bnlearn-Pakets: <https://www.bnlearn.com/documentation/bnlearn-manual.pdf>
+
+## Referenzen
+
+Geiger, D., Verma, T., & Pearl, J. (1990). Identifying independence in Bayesian networks. *Networks, 20*(5), 507-534. <http://ftp.cs.ucla.edu/pub/stat_ser/r116.pdf>
+
+Lauritzen S., Spiegelhalter D. (1988). Local Computation with Probabilities on Graphical Structures and their Application to Expert Systems (with discussion). *Journal of the Royal Statistical Society: Series B, 50(2)*: 157--224.<https://www.eecis.udel.edu/~shatkay/Course/papers/Lauritzen1988.pdf>
+
+Scutari, M., & Denis, J.-B., (2022). *Bayesian Networks: With Examples in R.* CRC Press.
+
+Yang, X.-S., (2019). *Introduction to Algorithms for Data Mining and Machine Learning.* Academic Press.

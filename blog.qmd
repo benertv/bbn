@@ -1,0 +1,16 @@
+---
+title: "Blog"
+format: 
+  html: 
+    self-contained: true
+toc: true
+toc-title: "Beiträge"
+toc-depth: 3
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Projektupdates
+
+Hier folgen Projektupdates in Form von Blogbeiträgen. Stay tuned.

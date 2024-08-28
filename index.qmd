@@ -1,0 +1,28 @@
+---
+title: "Willkommen"
+format: 
+  html: 
+    self-contained: true
+toc: true
+toc-title: "Inhalt"
+toc-depth: 3
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Updates des Projekts E-Valuate - Auf dem Weg zum lernenden Staat
+
+Auf den folgenden Seiten findet ihr:
+
+-   Tutorials zu Datenanalysen und Wirkungsorientierung
+
+-   Code- und Ergebnisdokumentationen zu den Datenanalysen aus dem E-Valuate-Projekt
+
+-   Projektupdates in Form von Blogbeiträgen.
+
+Ausführliche Projektinformationen gibt es auf der offiziellen Projektwebsite: [E-Valuate - Auf dem Weg zum lernenden Staat](https://www.agoradigital.de/projekte/e-valuate)
+
+Wir freuen uns über Feedback und Themenvorschläge. Schreibt uns dazu gern eine Mail an *vivien.benert\@agoradigital.de*.
+
+![Vom politischen Ziel zur gesellschaftlichen Veränderung, Quelle: Agora Digitale Transformation](Grafik1_Politisches-Ziel-zu-Gesellschaftlicher-Veraenderung.jpg){width="600"}
