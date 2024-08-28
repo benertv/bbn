@@ -3,7 +3,7 @@ project:
   output-dir: docs
 
 website:
-  title: "E-Valuate - Auf dem Weg zum lernenden Staat"
+  title: "E-Valuate"
   navbar:
     left:
       - href: index.qmd

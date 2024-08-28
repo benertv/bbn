@@ -1,5 +1,5 @@
 ---
-title: "Willkommen"
+title: ""
 format: 
   html: 
     self-contained: true
@@ -11,7 +11,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-## Updates des Projekts E-Valuate - Auf dem Weg zum lernenden Staat
+# Updates des Projekts E-Valuate - Auf dem Weg zum lernenden Staat
 
 Auf den folgenden Seiten findet ihr:
 
@@ -25,4 +25,4 @@ Ausführliche Projektinformationen gibt es auf der offiziellen Projektwebsite: [
 
 Wir freuen uns über Feedback und Themenvorschläge. Schreibt uns dazu gern eine Mail an *vivien.benert\@agoradigital.de*.
 
-![Vom politischen Ziel zur gesellschaftlichen Veränderung, Quelle: Agora Digitale Transformation](Grafik1_Politisches-Ziel-zu-Gesellschaftlicher-Veraenderung.jpg){width="600"}
+![Quelle: Agora Digitale Transformation](Grafik1_Politisches-Ziel-zu-Gesellschaftlicher-Veraenderung.jpg){fig-align="left" width="600"}
