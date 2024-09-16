@@ -57,7 +57,7 @@ plot(simple_graph,
 
 **DAGs:** Die Abkürzung *DAG* steht für "Directed Acyclic Graphs", also gerichtete Netzwerke ohne Zirkelschlüsse. Die Kausalannahmen eines theoretischen Modells werden in Form eines Netzwerkes dargstellt. Um daraus inferenzstatistische Schlüsse ziehen zu können, werden die Variablen, die die Knoten des Netzwerks bilden, mit Variablen und empirischen Daten hinterlegt (vgl. dazu die Abschnitte 2 und 4).
 
-**Bedingte Wahrscheinlichkeitstabellen:** *Bedingte Wahrscheinlichkeitstabellen (Conditional Probability Tables)* geben die Wahrscheinlichkeiten der im Modell vorhandenen Variablen an. Bedingte Wahrscheinlichkeiten geben die Wahrscheinlichkeit einer Variable in Abhängigkeit einer anderen Variable an. Wie bedingte Wahrscheinlichkeitstabellen berechnet werden können, schauen wir uns in Kapitel X genauer an.\
+**Bedingte Wahrscheinlichkeitstabellen:** *Bedingte Wahrscheinlichkeitstabellen (Conditional Probability Tables)* geben die Wahrscheinlichkeiten der im Modell vorhandenen Variablen an. Bedingte Wahrscheinlichkeiten geben die Wahrscheinlichkeit einer Variable in Abhängigkeit einer anderen Variable an. \
 
 ### 1.2 Voraussetzungen an das Modell
 
